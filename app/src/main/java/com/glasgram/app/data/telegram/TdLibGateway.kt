@@ -62,6 +62,8 @@ class TdLibGateway private constructor(
                         ByteArray(0),
                         true,
                         true,
+                        true,
+                        false,
                         apiId,
                         apiHash,
                         "en",
