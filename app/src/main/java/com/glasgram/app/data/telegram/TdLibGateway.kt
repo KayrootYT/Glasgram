@@ -62,21 +62,14 @@ class TdLibGateway private constructor(
                         ByteArray(0),
                         true,
                         true,
-                        true,
-                        false,
                         apiId,
                         apiHash,
                         "en",
                         Build.MODEL ?: "Android",
                         Build.VERSION.RELEASE ?: "Android",
-                        "0.1.0",
-                        true,
-                        false
+                        "0.1.0"
                     )
                 )
-            }
-            is TdApi.AuthorizationStateWaitEncryptionKey -> {
-                send(TdApi.CheckDatabaseEncryptionKey(ByteArray(0)))
             }
         }
     }
