@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.glasgram.app.data.telegram.TdLibGateway
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
 
 @androidx.compose.runtime.Composable
 private fun GlasgramApp() {
+    val appContext = LocalContext.current.applicationContext
     var apiId by remember { mutableStateOf("") }
     var apiHash by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -152,7 +154,7 @@ private fun GlasgramApp() {
                                 error = "Enter a valid API ID and API hash from my.telegram.org."
                             } else {
                                 try {
-                                    gateway = TdLibGateway.create(GlasgramApplicationContext.app, id, apiHash.trim())
+                                    gateway = TdLibGateway.create(appContext, id, apiHash.trim())
                                     stage = "loading"
                                     status = "Starting Telegram engine…"
                                     error = ""
