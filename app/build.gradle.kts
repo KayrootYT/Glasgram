@@ -16,6 +16,12 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        val telegramApiId = providers.gradleProperty("TELEGRAM_API_ID")
+            .orElse(providers.environmentVariable("TELEGRAM_API_ID")).getOrElse("0").toIntOrNull() ?: 0
+        val telegramApiHash = providers.gradleProperty("TELEGRAM_API_HASH")
+            .orElse(providers.environmentVariable("TELEGRAM_API_HASH")).getOrElse("")
+        buildConfigField("int", "TELEGRAM_API_ID", telegramApiId.toString())
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"\${telegramApiHash}\"")
     }
 
     buildTypes {
@@ -38,7 +44,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     packaging {
         jniLibs.useLegacyPackaging = true
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
