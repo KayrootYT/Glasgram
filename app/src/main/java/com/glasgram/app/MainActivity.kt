@@ -3,8 +3,6 @@ package com.glasgram.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,49 +10,48 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Archive
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.glasgram.app.data.telegram.TdLibGateway
+import kotlinx.coroutines.flow.collect
+import org.drinkless.tdlib.TdApi
 
 private val Night = Color(0xFF080B14)
 private val Glass = Color(0xFF171D2C)
 private val Blue = Color(0xFF8BB8FF)
 private val Muted = Color(0xFF929DB4)
+
+private data class LiveChat(val id: Long, val title: String)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,204 +60,190 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class ChatPreview(
-    val name: String,
-    val message: String,
-    val time: String,
-    val initials: String,
-    val unread: Int = 0,
-    val color: Color
-)
-
-private val sampleChats = listOf(
-    ChatPreview("Design Circle", "Mira: the new glass pass looks great ✨", "18:42", "DC", 3, Color(0xFF596BC2)),
-    ChatPreview("Alex Morgan", "Sent a photo", "18:27", "AM", 0, Color(0xFFBD7899)),
-    ChatPreview("Android Builders", "Ravi: CI build is green", "17:56", "AB", 12, Color(0xFF3C9E91)),
-    ChatPreview("Saved Messages", "Your notes and saved links", "16:31", "✦", 0, Color(0xFF477CC8)),
-    ChatPreview("Product Updates", "New features are on the way", "15:08", "PU", 1, Color(0xFFC38D51)),
-    ChatPreview("Neha", "Voice message · 0:18", "Yesterday", "N", 0, Color(0xFF9B75C8))
-)
-
-@Composable
+@androidx.compose.runtime.Composable
 private fun GlasgramApp() {
-    var selectedTab by remember { mutableStateOf("Chats") }
-    var searchOpen by remember { mutableStateOf(false) }
+    var apiId by remember { mutableStateOf("") }
+    var apiHash by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var stage by remember { mutableStateOf("credentials") }
+    var status by remember { mutableStateOf("Connect your Telegram account") }
+    var error by remember { mutableStateOf("") }
+    var gateway by remember { mutableStateOf<TdLibGateway?>(null) }
+    val chats = remember { mutableStateListOf<LiveChat>() }
+
+    LaunchedEffect(gateway) {
+        val active = gateway ?: return@LaunchedEffect
+        active.updates.collect { update ->
+            when (update) {
+                is TdApi.UpdateAuthorizationState -> {
+                    when (val auth = update.authorizationState) {
+                        is TdApi.AuthorizationStateWaitTdlibParameters -> status = "Preparing secure Telegram session…"
+                        is TdApi.AuthorizationStateWaitPhoneNumber -> { stage = "phone"; status = "Enter your Telegram phone number" }
+                        is TdApi.AuthorizationStateWaitCode -> { stage = "code"; status = "Enter the login code sent by Telegram" }
+                        is TdApi.AuthorizationStateWaitPassword -> { stage = "password"; status = "Two-step verification password required" }
+                        is TdApi.AuthorizationStateReady -> {
+                            stage = "chats"; status = "Connected to Telegram"; error = ""
+                            active.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { result ->
+                                if (result is TdApi.Chats) result.chatIds.forEach { chatId ->
+                                    active.send(TdApi.GetChat(chatId)) { chatResult ->
+                                        if (chatResult is TdApi.Chat && chats.none { it.id == chatResult.id }) {
+                                            chats.add(LiveChat(chatResult.id, chatResult.title))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        is TdApi.AuthorizationStateLoggingOut -> { stage = "loading"; status = "Signing out…" }
+                        is TdApi.AuthorizationStateClosing -> { stage = "loading"; status = "Closing session…" }
+                        is TdApi.AuthorizationStateClosed -> { stage = "credentials"; status = "Session closed" }
+                        else -> Unit
+                    }
+                }
+                is TdApi.UpdateNewChat -> {
+                    val chat = update.chat
+                    if (chats.none { it.id == chat.id }) chats.add(LiveChat(chat.id, chat.title))
+                }
+                is TdApi.UpdateChatTitle -> {
+                    val index = chats.indexOfFirst { it.id == update.chatId }
+                    if (index >= 0) chats[index] = chats[index].copy(title = update.title)
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    LaunchedEffect(gateway) {
+        gateway?.errors?.collect { error = it }
+    }
 
     MaterialTheme {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFF121B31), Night, Color(0xFF080A11))))
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color(0xFF121B31), Night, Color(0xFF080A11)))
+            )
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 20.dp)
+                Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.weight(1f)) {
-                        Text("GLASGRAM", color = Blue, fontSize = 11.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            when (selectedTab) {
-                                "Calls" -> "Your calls"
-                                "Contacts" -> "People"
-                                "Settings" -> "Your space"
-                                else -> "Messages"
-                            },
-                            color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.SemiBold
+                Spacer(Modifier.height(8.dp))
+                Text("GLASGRAM", color = Blue, fontSize = 11.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (stage == "chats") "Your messages" else "Telegram, reimagined.",
+                    color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold
+                )
+                Text(status, color = Muted, fontSize = 14.sp)
+                if (error.isNotBlank()) {
+                    Surface(color = Color(0xFF48252D), shape = RoundedCornerShape(14.dp)) {
+                        Text(error, color = Color(0xFFFFC3CC), modifier = Modifier.padding(12.dp), fontSize = 12.sp)
+                    }
+                }
+                when (stage) {
+                    "credentials" -> {
+                        Text("Telegram API credentials", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Create your own API ID and hash at my.telegram.org. They stay on this device and are not committed to the repository.", color = Muted, fontSize = 12.sp)
+                        GlassField(apiId, { apiId = it }, "API ID", KeyboardType.Number)
+                        GlassField(apiHash, { apiHash = it }, "API hash")
+                        PrimaryAction("Continue securely") {
+                            val id = apiId.toIntOrNull()
+                            if (id == null || apiHash.isBlank()) {
+                                error = "Enter a valid API ID and API hash from my.telegram.org."
+                            } else {
+                                try {
+                                    gateway = TdLibGateway.create(GlasgramApplicationContext.app, id, apiHash.trim())
+                                    stage = "loading"
+                                    status = "Starting Telegram engine…"
+                                    error = ""
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Could not start Telegram engine."
+                                }
+                            }
+                        }
+                    }
+                    "phone" -> {
+                        GlassField(phone, { phone = it }, "Phone number, including country code", KeyboardType.Phone)
+                        PrimaryAction("Send login code") {
+                            if (phone.isBlank()) error = "Enter the phone number linked to Telegram."
+                            else { gateway?.submitPhoneNumber(phone.trim()); stage = "loading"; status = "Requesting Telegram login code…"; error = "" }
+                        }
+                    }
+                    "code" -> {
+                        GlassField(code, { code = it }, "Telegram login code", KeyboardType.Number)
+                        PrimaryAction("Verify code") {
+                            if (code.isBlank()) error = "Enter the code Telegram sent you."
+                            else { gateway?.submitCode(code.trim()); stage = "loading"; status = "Verifying login code…"; error = "" }
+                        }
+                    }
+                    "password" -> {
+                        OutlinedTextField(
+                            value = password, onValueChange = { password = it }, label = { Text("Two-step verification password") },
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            visualTransformation = PasswordVisualTransformation()
                         )
+                        PrimaryAction("Verify password") {
+                            if (password.isBlank()) error = "Enter your Telegram two-step verification password."
+                            else { gateway?.submitPassword(password); stage = "loading"; status = "Verifying password…"; error = "" }
+                        }
                     }
-                    GlassIcon(Icons.Rounded.Search, "Search") { searchOpen = !searchOpen }
-                    Spacer(Modifier.size(10.dp))
-                    GlassIcon(Icons.Rounded.Edit, "Compose") { selectedTab = "Contacts" }
-                }
-                AnimatedVisibility(searchOpen) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 18.dp)
-                            .clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = .08f))
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Rounded.Search, null, tint = Muted)
-                        Spacer(Modifier.size(10.dp))
-                        Text("Search chats and messages", color = Muted, fontSize = 14.sp)
+                    "loading" -> {
+                        CircularProgressIndicator(color = Blue)
+                        Text("Waiting for Telegram…", color = Muted, fontSize = 13.sp)
+                    }
+                    "chats" -> {
+                        if (chats.isEmpty()) {
+                            Text("Syncing your Telegram chats…", color = Muted)
+                            CircularProgressIndicator(color = Blue)
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                items(chats, key = { it.id }) { chat ->
+                                    Row(
+                                        Modifier.fillMaxWidth().background(Glass, RoundedCornerShape(18.dp))
+                                            .clickable { status = "Selected: ${chat.title} · chat ID ${chat.id}" }
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(Modifier.size(42.dp).background(Color(0xFF293A5A), CircleShape), contentAlignment = Alignment.Center) {
+                                            Text(chat.title.take(1).uppercase(), color = Blue, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(Modifier.size(12.dp))
+                                        Column {
+                                            Text(chat.title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                            Text("Telegram chat · live data", color = Muted, fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                Spacer(Modifier.height(22.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    FilterPill("All", true) {}
-                    FilterPill("Personal", false) {}
-                    FilterPill("Groups", false) {}
-                    FilterPill("Unread", false) {}
-                }
-                Spacer(Modifier.height(18.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Archive, null, tint = Muted, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(8.dp))
-                    Text("Archived chats", color = Muted, fontSize = 13.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text("DEMO PREVIEW", color = Blue.copy(alpha = .8f), fontSize = 9.sp, letterSpacing = 1.5.sp)
-                }
-                Spacer(Modifier.height(10.dp))
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(sampleChats) { chat -> ChatRow(chat) { selectedTab = "Chats" } }
-                    item { Spacer(Modifier.height(12.dp)) }
-                }
-                BottomGlassBar(selectedTab) { selectedTab = it }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.weight(1f))
+                Text("Glasgram uses Telegram's TDLib client engine. Login codes and passwords are handled locally by TDLib.", color = Muted, fontSize = 11.sp)
             }
         }
     }
 }
 
-@Composable
-private fun GlassIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onClick),
-        color = Color.White.copy(alpha = .08f),
-        shape = CircleShape,
-        tonalElevation = 0.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(20.dp))
-        }
-    }
-}
-
-@Composable
-private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
-    val alpha by animateFloatAsState(if (selected) 1f else .75f, label = "pillAlpha")
-    Surface(
-        modifier = Modifier.alpha(alpha).clip(CircleShape).clickable(onClick = onClick),
-        color = if (selected) Blue.copy(alpha = .2f) else Color.White.copy(alpha = .055f),
-        shape = CircleShape
-    ) {
-        Text(
-            label,
-            color = if (selected) Blue else Muted,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp)
-        )
-    }
-}
-
-@Composable
-private fun ChatRow(chat: ChatPreview, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
-            .background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = .075f), Color.White.copy(alpha = .025f))))
-            .clickable(onClick = onClick).padding(horizontal = 13.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(53.dp).clip(CircleShape).background(
-                Brush.linearGradient(listOf(chat.color, chat.color.copy(alpha = .55f)))
-            ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(chat.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        }
-        Spacer(Modifier.size(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(chat.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(5.dp))
-            Text(chat.message, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.size(8.dp))
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(chat.time, color = Muted, fontSize = 10.sp)
-            if (chat.unread > 0) {
-                Box(
-                    modifier = Modifier.clip(CircleShape).background(Blue).padding(horizontal = 7.dp, vertical = 3.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(if (chat.unread > 9) "9+" else chat.unread.toString(), color = Night, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BottomGlassBar(selected: String, onSelect: (String) -> Unit) {
-    Surface(
-        color = Color.White.copy(alpha = .075f),
-        shape = RoundedCornerShape(26.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BottomItem("Chats", Icons.Rounded.Star, selected == "Chats") { onSelect("Chats") }
-            BottomItem("Contacts", Icons.Rounded.Groups, selected == "Contacts") { onSelect("Contacts") }
-            BottomItem("Calls", Icons.Rounded.Edit, selected == "Calls") { onSelect("Calls") }
-            BottomItem("Settings", Icons.Rounded.Settings, selected == "Settings") { onSelect("Settings") }
-        }
-    }
-}
-
-@Composable
-private fun BottomItem(
+@androidx.compose.runtime.Composable
+private fun GlassField(
+    value: String,
+    onValueChange: (String) -> Unit,
     label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
-    Column(
-        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(icon, contentDescription = label, tint = if (selected) Blue else Muted, modifier = Modifier.size(20.dp))
-        Text(label, color = if (selected) Blue else Muted, fontSize = 10.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-    }
+    OutlinedTextField(
+        value = value, onValueChange = onValueChange, label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(), singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
+    )
+}
+
+@androidx.compose.runtime.Composable
+private fun PrimaryAction(label: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(17.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Blue, contentColor = Night)
+    ) { Text(label, fontWeight = FontWeight.SemiBold) }
 }
