@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * TDLib-backed Telegram session. API credentials are supplied by the user and are
@@ -86,10 +87,10 @@ class TdLibGateway private constructor(
             require(apiHash.isNotBlank()) { "Telegram API hash is required." }
 
             val appContext = context.applicationContext
-            lateinit var gateway: TdLibGateway
+            val gatewayRef = AtomicReference<TdLibGateway?>(null)
             val client = Client.create(
                 Client.ResultHandler { update ->
-                    if (::gateway.isInitialized) {
+                    gatewayRef.get()?.let { gateway ->
                         gateway.updateBus.tryEmit(update)
                         if (update is TdApi.UpdateAuthorizationState) {
                             gateway.handleAuthorizationState(update.authorizationState)
@@ -97,14 +98,13 @@ class TdLibGateway private constructor(
                     }
                 },
                 Client.ExceptionHandler { error ->
-                    if (::gateway.isInitialized) gateway.errorBus.tryEmit(error.message ?: "TDLib exception")
+                    gatewayRef.get()?.errorBus?.tryEmit(error.message ?: "TDLib exception")
                 },
                 Client.ExceptionHandler { error ->
-                    if (::gateway.isInitialized) gateway.errorBus.tryEmit(error.message ?: "TDLib exception")
+                    gatewayRef.get()?.errorBus?.tryEmit(error.message ?: "TDLib exception")
                 }
             )
-            gateway = TdLibGateway(client, appContext, apiId, apiHash)
-            return gateway
+            return TdLibGateway(client, appContext, apiId, apiHash).also(gatewayRef::set)
         }
     }
 }
