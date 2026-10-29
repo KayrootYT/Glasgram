@@ -13,21 +13,12 @@ import org.drinkless.tdlib.TdApi
  * libtdjni.so and the complete TDLib authorization state machine are prerequisites.
  */
 class TdLibGateway private constructor(
-    private val client: Client
+    private val client: Client,
+    private val updateBus: MutableSharedFlow<TdApi.Object>,
+    private val errorBus: MutableSharedFlow<String>
 ) {
-    private val _updates = MutableSharedFlow<TdApi.Object>(
-        replay = 0,
-        extraBufferCapacity = 128,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val updates: SharedFlow<TdApi.Object> = _updates
-
-    private val _errors = MutableSharedFlow<String>(
-        replay = 0,
-        extraBufferCapacity = 32,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val errors: SharedFlow<String> = _errors
+    val updates: SharedFlow<TdApi.Object> = updateBus
+    val errors: SharedFlow<String> = errorBus
 
     fun send(query: TdApi.Function<*>, callback: (TdApi.Object) -> Unit = {}) {
         client.send(query, Client.ResultHandler { result -> callback(result) })
@@ -42,19 +33,29 @@ class TdLibGateway private constructor(
          * Returns null if the native TDLib runtime is not packaged or fails to load.
          * Call from an appropriate lifecycle owner and report the failure to the UI.
          */
-        fun createOrNull(): TdLibGateway? = try {
-            lateinit var gateway: TdLibGateway
-            val client = Client.create(
-                Client.ResultHandler { update -> gateway._updates.tryEmit(update) },
-                Client.ExceptionHandler { error -> gateway._errors.tryEmit(error.message ?: "TDLib error") },
-                Client.ExceptionHandler { error -> gateway._errors.tryEmit(error.message ?: "TDLib error") }
+        fun createOrNull(): TdLibGateway? {
+            val updateBus = MutableSharedFlow<TdApi.Object>(
+                replay = 0,
+                extraBufferCapacity = 128,
+                onBufferOverflow = BufferOverflow.DROP_OLDEST
             )
-            gateway = TdLibGateway(client)
-            gateway
-        } catch (_: UnsatisfiedLinkError) {
-            null
-        } catch (_: RuntimeException) {
-            null
+            val errorBus = MutableSharedFlow<String>(
+                replay = 0,
+                extraBufferCapacity = 32,
+                onBufferOverflow = BufferOverflow.DROP_OLDEST
+            )
+            return try {
+                val client = Client.create(
+                    Client.ResultHandler { update -> updateBus.tryEmit(update) },
+                    Client.ExceptionHandler { error -> errorBus.tryEmit(error.message ?: "TDLib error") },
+                    Client.ExceptionHandler { error -> errorBus.tryEmit(error.message ?: "TDLib error") }
+                )
+                TdLibGateway(client, updateBus, errorBus)
+            } catch (_: UnsatisfiedLinkError) {
+                null
+            } catch (_: RuntimeException) {
+                null
+            }
         }
     }
 }
