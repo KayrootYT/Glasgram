@@ -21,7 +21,7 @@ android {
         val telegramApiHash = providers.gradleProperty("TELEGRAM_API_HASH")
             .orElse(providers.environmentVariable("TELEGRAM_API_HASH")).getOrElse("")
         buildConfigField("int", "TELEGRAM_API_ID", telegramApiId.toString())
-        buildConfigField("String", "TELEGRAM_API_HASH", "\"\${telegramApiHash}\"")
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\"")
     }
 
     buildTypes {
