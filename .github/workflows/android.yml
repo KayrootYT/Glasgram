@@ -31,6 +31,12 @@ jobs:
       - name: Install Android platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Validate Telegram API credentials
+        run: |
+          if [ -z "$TELEGRAM_API_ID" ] || [ "$TELEGRAM_API_ID" = "0" ] || [ -z "$TELEGRAM_API_HASH" ]; then
+            echo "::error::Missing Telegram API credentials. Add TELEGRAM_API_ID and TELEGRAM_API_HASH in Settings > Secrets and variables > Actions, then rerun the workflow."
+            exit 1
+          fi
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Upload debug APK
