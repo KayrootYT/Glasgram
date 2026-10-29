@@ -64,12 +64,10 @@ class MainActivity : ComponentActivity() {
 @androidx.compose.runtime.Composable
 private fun GlasgramApp() {
     val appContext = LocalContext.current.applicationContext
-    var apiId by remember { mutableStateOf("") }
-    var apiHash by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var stage by remember { mutableStateOf("credentials") }
+    var stage by remember { mutableStateOf("start") }
     var status by remember { mutableStateOf("Connect your Telegram account") }
     var error by remember { mutableStateOf("") }
     var gateway by remember { mutableStateOf<TdLibGateway?>(null) }
@@ -143,18 +141,20 @@ private fun GlasgramApp() {
                     }
                 }
                 when (stage) {
-                    "credentials" -> {
-                        Text("Telegram API credentials", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Text("Create your own API ID and hash at my.telegram.org. They stay on this device and are not committed to the repository.", color = Muted, fontSize = 12.sp)
-                        GlassField(apiId, { apiId = it }, "API ID", KeyboardType.Number)
-                        GlassField(apiHash, { apiHash = it }, "API hash")
-                        PrimaryAction("Continue securely") {
-                            val id = apiId.toIntOrNull()
-                            if (id == null || apiHash.isBlank()) {
-                                error = "Enter a valid API ID and API hash from my.telegram.org."
+                    "start" -> {
+                        Text("Sign in to Telegram", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                        Text(
+                            "Use your existing Telegram account. No API ID or API hash entry is needed on this screen.",
+                            color = Muted, fontSize = 13.sp
+                        )
+                        PrimaryAction("Continue with Telegram") {
+                            val id = BuildConfig.TELEGRAM_API_ID
+                            val hash = BuildConfig.TELEGRAM_API_HASH
+                            if (id <= 0 || hash.isBlank()) {
+                                error = "This Glasgram build is missing its app credentials. The developer must set TELEGRAM_API_ID and TELEGRAM_API_HASH in GitHub Actions Secrets, then rebuild the APK."
                             } else {
                                 try {
-                                    gateway = TdLibGateway.create(appContext, id, apiHash.trim())
+                                    gateway = TdLibGateway.create(appContext, id, hash)
                                     stage = "loading"
                                     status = "Starting Telegram engine…"
                                     error = ""
@@ -221,7 +221,7 @@ private fun GlasgramApp() {
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text("Glasgram uses Telegram's TDLib client engine. Login codes and passwords are handled locally by TDLib.", color = Muted, fontSize = 11.sp)
+                Text("Secure sign-in is handled by Telegram. Never share your login code or 2-step verification password.", color = Muted, fontSize = 11.sp)
             }
         }
     }
