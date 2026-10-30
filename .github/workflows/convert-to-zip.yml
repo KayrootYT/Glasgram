@@ -1,0 +1,40 @@
+name: Convert repository to ZIP-only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create full project archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=zip --output=Glasgram.zip HEAD
+          test -s Glasgram.zip
+          unzip -t Glasgram.zip
+
+      - name: Keep only ZIP and GitHub workflow files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files -z             | grep -zvE '^\.github/workflows/(android|convert-to-zip)\.yml$'             | xargs -0 -r git rm --
+          git add Glasgram.zip
+          if git diff --cached --quiet; then
+            echo "No repository conversion changes detected."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "Store complete Glasgram project as Glasgram.zip"
+          git push
