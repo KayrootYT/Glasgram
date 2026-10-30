@@ -158,8 +158,10 @@ private fun GlasgramApp() {
                                     stage = "loading"
                                     status = "Starting Telegram engine…"
                                     error = ""
-                                } catch (e: Exception) {
-                                    error = e.message ?: "Could not start Telegram engine."
+                                } catch (e: Throwable) {
+                                    val detail = e.message?.takeIf { it.isNotBlank() } ?: "No error message provided"
+                                    error = "Telegram engine could not start (${e.javaClass.simpleName}): $detail"
+                                    stage = "start"
                                 }
                             }
                         }
