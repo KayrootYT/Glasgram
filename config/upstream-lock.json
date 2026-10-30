@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "telegram_android": {
+      "repository": "DrKLO/Telegram",
+      "baseline_commit": "",
+      "purpose": "Official Android client source changes"
+    },
+    "tdlib": {
+      "repository": "tdlib/td",
+      "baseline_commit": "",
+      "purpose": "Official TDLib API, runtime and schema changes"
+    }
+  },
+  "notes": [
+    "Empty baseline_commit means report the current upstream head as an initial baseline; it is not auto-merged.",
+    "After reviewing and integrating an upstream change, update baseline_commit to the reviewed commit."
+  ]
+}
