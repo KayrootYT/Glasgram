@@ -19,26 +19,47 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Extract project ZIP when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "Glasgram.zip" ]; then
+            mkdir -p "$RUNNER_TEMP/glasgram-source"
+            unzip -q Glasgram.zip -d "$RUNNER_TEMP/glasgram-source"
+            rsync -a --exclude='.github/' "$RUNNER_TEMP/glasgram-source/" "$GITHUB_WORKSPACE/"
+            echo "Built from Glasgram.zip"
+          else
+            echo "Glasgram.zip not found; using repository source for the initial conversion build."
+          fi
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
+
       - name: Install Android platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
       - name: Validate Telegram API credentials
         run: |
           if [ -z "$TELEGRAM_API_ID" ] || [ "$TELEGRAM_API_ID" = "0" ] || [ -z "$TELEGRAM_API_HASH" ]; then
             echo "::error::Missing Telegram API credentials. Add TELEGRAM_API_ID and TELEGRAM_API_HASH in Settings > Secrets and variables > Actions, then rerun the workflow."
             exit 1
           fi
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
