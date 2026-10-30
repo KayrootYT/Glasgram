@@ -115,7 +115,22 @@ private fun GlasgramApp() {
     }
 
     LaunchedEffect(gateway) {
-        gateway?.errors?.collect { error = it }
+        gateway?.errors?.collect { message ->
+            error = message
+            if (message.contains("PASSWORD_HASH_INVALID", ignoreCase = true)) {
+                password = ""
+                stage = "password"
+                status = "That password was not accepted. Try your Telegram two-step verification password again."
+            } else if (message.contains("Telegram error", ignoreCase = true)) {
+                // Keep the current authorization screen available so the user can correct input or retry.
+                if (stage == "loading") stage = when {
+                    password.isNotBlank() -> "password"
+                    code.isNotBlank() -> "code"
+                    phone.isNotBlank() -> "phone"
+                    else -> "start"
+                }
+            }
+        }
     }
 
     MaterialTheme {
