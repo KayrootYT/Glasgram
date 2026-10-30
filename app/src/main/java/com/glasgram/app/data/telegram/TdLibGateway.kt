@@ -82,6 +82,18 @@ class TdLibGateway private constructor(
             require(apiHash.isNotBlank()) { "Telegram API hash is required." }
 
             val appContext = context.applicationContext
+            // This TDLib Java binding does not load its JNI libraries itself.
+            // Load OpenSSL dependencies first, then the TDLib JNI bridge.
+            try {
+                System.loadLibrary("cryptox")
+                System.loadLibrary("sslx")
+                System.loadLibrary("tdjni")
+            } catch (error: UnsatisfiedLinkError) {
+                throw IllegalStateException(
+                    "Could not load TDLib native libraries for this device ABI: ${error.message}",
+                    error
+                )
+            }
             val gatewayRef = AtomicReference<TdLibGateway?>(null)
             val client = Client.create(
                 Client.ResultHandler { update ->
