@@ -1,0 +1,94 @@
+name: Official Android Debug Build Audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".gitmodules"
+      - "upstream/Telegram"
+      - "docs/UPSTREAM_BUILD_AUDIT.md"
+      - ".github/workflows/official-android-debug-build.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-android-debug-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upstream-debug-build:
+    # This is a compile-only audit of upstream source, not a Glasgram release build.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Glasgram with official source and nested submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android build tools
+        run: |
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
+          yes | sdkmanager --licenses >/dev/null
+
+      - name: Verify source revision and wrapper
+        working-directory: upstream/Telegram
+        run: |
+          set -euo pipefail
+          test -x ./gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f TMessagesProj/config/release.keystore
+          echo "Telegram source: $(git rev-parse HEAD)"
+          echo "Gradle wrapper:"
+          grep '^distributionUrl=' gradle/wrapper/gradle-wrapper.properties
+          echo "Nested submodule status:"
+          git submodule status --recursive
+
+      - name: Compile upstream debug variant only
+        working-directory: upstream/Telegram
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g\ -XX:MaxMetaspaceSize=1g"
+        run: |
+          set -o pipefail
+          ./gradlew :TMessagesProj_App:assembleAfatDebug \
+            --no-daemon \
+            --stacktrace \
+            --max-workers=2 \
+            -Dorg.gradle.parallel=false
+
+      - name: Record build output metadata (no APK publication)
+        if: always()
+        working-directory: upstream/Telegram
+        run: |
+          mkdir -p ../build-audit
+          {
+            echo "Pinned source: $(git rev-parse HEAD)"
+            echo "Requested task: :TMessagesProj_App:assembleAfatDebug"
+            echo "This workflow is compile-only and does not publish an APK."
+            echo "No Glasgram package identity, signing key, or user data is changed."
+            find TMessagesProj_App/build/outputs/apk -type f -maxdepth 5 -printf '%p %s bytes\n' 2>/dev/null || true
+          } > ../build-audit/build-report.txt
+
+      - name: Upload build audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glasgram-upstream-debug-build-audit
+          path: upstream/build-audit/build-report.txt
+          if-no-files-found: warn
