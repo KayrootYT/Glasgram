@@ -4,7 +4,7 @@
 
 Glasgram is built with Kotlin, Jetpack Compose, and the official TDLib client library. It is an independent third-party client project, not an official Telegram app.
 
-## Project status (v0.2.0)
+## Project status (v0.2.0)\n\n**Architecture migration in progress:** the official Android client source is pinned as a Git submodule at `upstream/Telegram`. The existing Compose + TDLib app remains the current runnable app until the upstream source is built, adapted and validated. See [docs/OFFICIAL_ANDROID_FOUNDATION.md](docs/OFFICIAL_ANDROID_FOUNDATION.md). To fetch the upstream source when cloning, use `git clone --recurse-submodules https://github.com/KayrootYT/Glasgram.git`.
 
 **Working (written, not yet device-tested):**
 - [x] Liquid-glass UI: translucent glass cards, specular rims, drifting light orbs, floating glass tab bar
