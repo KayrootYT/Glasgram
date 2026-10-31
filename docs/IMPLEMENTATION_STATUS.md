@@ -8,6 +8,7 @@ This document is the verified scope boundary for the current source package. A c
 - [x] Existing Liquid Glass UI screens preserved.
 - [x] TDLib gateway and basic authorization states (phone, code, 2-step password) exist in source.
 - [x] Basic chat list, text message send, reply, edit, delete, history paging and pin/mute actions exist in source.
+- [x] User-defined local chat folders: create up to 12, assign chats from long-press actions, filter by folder, and remove folders; stored locally in SharedPreferences.
 - [x] TDLib database encryption key is generated randomly and wrapped with an AES-256-GCM Android Keystore key before persistence.
 - [x] Kotlin Compose compiler plugin version aligned with Kotlin plugin version.
 - [x] Telegram upstream watcher compares official Telegram Android and TDLib repository heads and requests a commit/file diff when a reviewed baseline is configured.
@@ -49,7 +50,8 @@ This document is the verified scope boundary for the current source package. A c
 
 ### Phase 3 — Third-party client capabilities
 
-- Advanced tabs/folders, per-chat appearance, download manager, translation, bookmarks, gesture customization, privacy controls and multi-account support.
+- [x] Initial local custom chat folders (create, assign, filter, delete) implemented in the Glasgram feature branch; requires CI and device verification.
+- Advanced server-backed folders/tabs, per-chat appearance, download manager, translation, bookmarks, gesture customization, privacy controls and multi-account support.
 - Each feature requires a product specification, API support check, UI, persistence, accessibility and regression tests. Do not copy proprietary client code/assets.
 
 ### Phase 4 — AutoSync 2.0
@@ -71,3 +73,8 @@ This document is the verified scope boundary for the current source package. A c
 ## Do not claim as complete
 
 The current project is not yet feature-equivalent to Telegram, does not implement every third-party-client feature, and does not automatically merge or release upstream code. The watcher is update detection and review automation, not autonomous feature implementation.
+
+
+## 2026-10-31 feature branch update
+
+The `glasgram-feature-implementation` branch adds persistent local custom chat folders. Folder membership is client-side and does not create Telegram-native folders or sync to other devices. CI and physical-device verification are still required. This branch does not yet replace the TDLib Compose foundation with the official Telegram Android source.
