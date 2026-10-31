@@ -1,0 +1,52 @@
+name: Official Android Source Audit
+
+on:
+  push:
+    branches: [official-android-foundation]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".gitmodules"
+      - "upstream/Telegram"
+      - "docs/OFFICIAL_ANDROID_FOUNDATION.md"
+      - ".github/workflows/official-android-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-upstream-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Glasgram and official source submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify pinned official Telegram Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .gitmodules
+          test -f upstream/Telegram/README.md
+          test -d upstream/Telegram/TMessagesProj
+          test -f upstream/Telegram/TMessagesProj/build.gradle
+          echo "Glasgram commit: $(git rev-parse HEAD)"
+          echo "Official Telegram Android pin: $(git -C upstream/Telegram rev-parse HEAD)"
+          echo "Submodule status:"
+          git submodule status --recursive
+          echo "Upstream project files:"
+          ls -la upstream/Telegram | head -60
+          echo "Upstream README build requirements:"
+          grep -n -A8 -B2 "Compilation Guide\|Android Studio\|NDK" upstream/Telegram/README.md || true
+
+      - name: Upload upstream source pin report
+        uses: actions/upload-artifact@v4
+        with:
+          name: glasgram-official-android-source-audit
+          path: |
+            .gitmodules
+            docs/OFFICIAL_ANDROID_FOUNDATION.md
+          if-no-files-found: error
