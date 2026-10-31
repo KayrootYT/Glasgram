@@ -1,0 +1,4 @@
+[submodule "upstream/Telegram"]
+	path = upstream/Telegram
+	url = https://github.com/DrKLO/Telegram.git
+	branch = master
