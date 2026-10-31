@@ -62,6 +62,9 @@ fun ChatsScreen(repo: TgRepository, onOpen: (Long) -> Unit) {
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableIntStateOf(0) }
     var menuChat by remember { mutableStateOf<ChatInfo?>(null) }
+    var showAddFolder by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    val customFolders = s.folders()
 
     val all = repo.sortedChats()
     val unreadChats = all.count { it.unread > 0 || it.markedUnread }
@@ -71,6 +74,7 @@ fun ChatsScreen(repo: TgRepository, onOpen: (Long) -> Unit) {
             2 -> c.kind == ChatKind.Private || c.kind == ChatKind.Secret
             3 -> c.kind == ChatKind.Group
             4 -> c.kind == ChatKind.Channel
+            in 5..(4 + customFolders.size) -> s.folderFor(c.id) == customFolders[filter - 5]
             else -> true
         }
         okFilter && (query.isBlank() || c.title.contains(query.trim(), ignoreCase = true))
@@ -133,7 +137,7 @@ fun ChatsScreen(repo: TgRepository, onOpen: (Long) -> Unit) {
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(FilterNames) { i, name ->
+                itemsIndexed(FilterNames + customFolders) { i, name ->
                     val selected = i == filter
                     val label = if (i == 1 && unreadChats > 0) "$name · $unreadChats" else name
                     Text(
@@ -146,6 +150,12 @@ fun ChatsScreen(repo: TgRepository, onOpen: (Long) -> Unit) {
                             .clickable { filter = i; haptic() }
                             .padding(horizontal = 16.dp, vertical = 9.dp)
                     )
+                }
+                item {
+                    Text("+ Folder", color = a, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.glass(CircleShape, tint = a).clickable {
+                            newFolderName = ""; showAddFolder = true
+                        }.padding(horizontal = 16.dp, vertical = 9.dp))
                 }
             }
 
@@ -189,6 +199,23 @@ fun ChatsScreen(repo: TgRepository, onOpen: (Long) -> Unit) {
                 SheetAction("📌", if (menu.pinned) "Unpin" else "Pin to top") { repo.togglePin(menu); menuChat = null }
                 SheetAction(if (menu.muted) "🔔" else "🔇", if (menu.muted) "Unmute" else "Mute") { repo.toggleMute(menu); menuChat = null }
                 SheetAction("✓", "Mark as read") { repo.markReadNow(menu.id); menuChat = null }
+                customFolders.forEach { folder ->
+                    SheetAction("📁", "Move to $folder") { s.assignFolder(menu.id, folder); menuChat = null }
+                }
+                if (s.folderFor(menu.id) != null) {
+                    SheetAction("↩", "Remove from custom folder") { s.assignFolder(menu.id, null); menuChat = null }
+                }
+            }
+        }
+        if (showAddFolder) {
+            GlassSheet(title = "Create chat folder", onDismiss = { showAddFolder = false }) {
+                GlassTextField(newFolderName, { newFolderName = it }, "Folder name")
+                SheetAction("＋", "Create folder") {
+                    if (s.addFolder(newFolderName)) { filter = 5 + s.folders().lastIndex; showAddFolder = false }
+                }
+                customFolders.forEach { folder ->
+                    SheetAction("🗑", "Delete $folder", danger = true) { s.removeFolder(folder); filter = 0 }
+                }
             }
         }
     }
