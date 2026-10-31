@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
+      # Inject credentials into BuildConfig so the installed app can start TDLib.
+      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
