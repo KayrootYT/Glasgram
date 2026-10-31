@@ -1,0 +1,66 @@
+name: Package Glasgram project ZIP
+
+on:
+  push:
+    branches: [official-android-foundation]
+    paths:
+      - "app/**"
+      - "build.gradle.kts"
+      - "gradle.properties"
+      - "settings.gradle.kts"
+      - ".github/workflows/package-project.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-glasgram-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create project archive and keep infrastructure outside
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f Glasgram.zip ] && [ ! -d app ] && [ ! -f settings.gradle.kts ]; then
+            echo "already_packaged=true" >> "$GITHUB_OUTPUT"
+            echo "Glasgram.zip already exists and project files are archived."
+            exit 0
+          fi
+
+          test -d app
+          test -f build.gradle.kts
+          test -f settings.gradle.kts
+          test -f gradle.properties
+
+          rm -f Glasgram.zip
+          git archive --format=zip --output=Glasgram.zip HEAD \
+            app build.gradle.kts gradle.properties settings.gradle.kts
+
+          unzip -t Glasgram.zip
+          unzip -l Glasgram.zip
+
+          # Keep only repository infrastructure and project documentation outside.
+          git rm -r app build.gradle.kts gradle.properties settings.gradle.kts
+          git add Glasgram.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Package Android project into Glasgram.zip"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "already_packaged=false" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Android CI against the archived project
+        if: steps.package.outputs.already_packaged == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run android.yml --ref "${GITHUB_REF_NAME}"
