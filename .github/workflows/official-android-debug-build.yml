@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   upstream-debug-build:
-    # This is a compile-only audit of upstream source, not a Glasgram release build.
+    # Compile-only audit of upstream source; this is not a Glasgram release build.
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -55,22 +55,19 @@ jobs:
           test -f gradle/wrapper/gradle-wrapper.jar
           test -f TMessagesProj/config/release.keystore
           echo "Telegram source: $(git rev-parse HEAD)"
-          echo "Gradle wrapper:"
           grep '^distributionUrl=' gradle/wrapper/gradle-wrapper.properties
-          echo "Nested submodule status:"
           git submodule status --recursive
 
       - name: Compile upstream debug variant only
         working-directory: upstream/Telegram
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g\ -XX:MaxMetaspaceSize=1g"
         run: |
           set -o pipefail
           ./gradlew :TMessagesProj_App:assembleAfatDebug \
             --no-daemon \
             --stacktrace \
             --max-workers=2 \
-            -Dorg.gradle.parallel=false
+            -Dorg.gradle.parallel=false \
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
 
       - name: Record build output metadata (no APK publication)
         if: always()
@@ -82,7 +79,7 @@ jobs:
             echo "Requested task: :TMessagesProj_App:assembleAfatDebug"
             echo "This workflow is compile-only and does not publish an APK."
             echo "No Glasgram package identity, signing key, or user data is changed."
-            find TMessagesProj_App/build/outputs/apk -type f -maxdepth 5 -printf '%p %s bytes\n' 2>/dev/null || true
+            find TMessagesProj_App/build/outputs/apk -maxdepth 5 -type f -printf '%p %s bytes\\n' 2>/dev/null || true
           } > ../build-audit/build-report.txt
 
       - name: Upload build audit report
