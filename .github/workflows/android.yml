@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, glasgram-audit-fixes]
   pull_request:
   workflow_dispatch:
 
@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
+      # Inject credentials into BuildConfig so the installed app can start TDLib.
       TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
       TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
     steps:
@@ -30,7 +31,7 @@ jobs:
             rsync -a --exclude='.github/' "$RUNNER_TEMP/glasgram-source/" "$GITHUB_WORKSPACE/"
             echo "Built from Glasgram.zip"
           else
-            echo "Glasgram.zip not found; using repository source for the initial conversion build."
+            echo "Glasgram.zip not found; using repository source."
           fi
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
@@ -49,13 +50,6 @@ jobs:
       - name: Install Android platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Validate Telegram API credentials
-        run: |
-          if [ -z "$TELEGRAM_API_ID" ] || [ "$TELEGRAM_API_ID" = "0" ] || [ -z "$TELEGRAM_API_HASH" ]; then
-            echo "::error::Missing Telegram API credentials. Add TELEGRAM_API_ID and TELEGRAM_API_HASH in Settings > Secrets and variables > Actions, then rerun the workflow."
-            exit 1
-          fi
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
