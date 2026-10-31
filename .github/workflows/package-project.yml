@@ -52,3 +52,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Package Android project into Glasgram.zip"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Upload complete Android project ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glasgram-complete-project
+          path: Glasgram.zip
+          if-no-files-found: error
+          retention-days: 30
