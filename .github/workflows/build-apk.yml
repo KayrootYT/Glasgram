@@ -36,6 +36,23 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Validate Telegram API credentials
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$TELEGRAM_API_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::TELEGRAM_API_ID must be a positive numeric Telegram API ID."
+            exit 1
+          fi
+          if [[ ! "$TELEGRAM_API_HASH" =~ ^[0-9a-fA-F]{32}$ ]]; then
+            echo "::error::TELEGRAM_API_HASH must be the 32-character hexadecimal API hash from my.telegram.org."
+            exit 1
+          fi
+          echo "Telegram API credentials are present and correctly formatted."
+
       - name: Build Debug APK
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
