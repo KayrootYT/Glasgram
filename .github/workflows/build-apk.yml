@@ -37,6 +37,9 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build Debug APK
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: gradle -p source assembleDebug
 
       - name: Upload APK
